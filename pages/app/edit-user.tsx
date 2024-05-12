@@ -30,7 +30,7 @@ export default function EditUser() {
   const [user, setUser] = useState<User>(() => {
     if (typeof userProps !== 'undefined') {
       try {
-        return { ...(JSON.parse(userProps) as User) };
+        return { ...(JSON.parse(userProps as string) as User) };
       } catch (error) {
         console.warn('Error parsing userProps:', error);
       }
