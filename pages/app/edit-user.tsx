@@ -30,7 +30,7 @@ export default function EditUser() {
     try {
       return JSON.parse(userProps as string) as User;
     } catch (error) {
-      console.error('Error parsing userProps:', error);
+      console.warn('Error parsing userProps:', error);
       return {} as User; // or provide a default user object
     }
   });

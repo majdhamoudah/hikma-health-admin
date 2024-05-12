@@ -369,7 +369,14 @@ export default function NewFormBuilder() {
   const [formIsSnapshot, setFormIsSnapshot] = useState(false);
   const [loadingSave, setLoadingSave] = useState(false);
 
-  const params = new URLSearchParams(window.location.search);
+  let params: URLSearchParams;
+
+  if (typeof window !== 'undefined') {
+    params = new URLSearchParams(window.location.search);
+  } else {
+    // Handle the case where window is not defined (e.g., in a server-side environment)
+    params = new URLSearchParams();
+  }
   const formId = params.get('formId');
 
   const [loadingForm, setLoadingForm] = useState(formId && formId.length > 5);
