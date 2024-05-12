@@ -506,7 +506,7 @@ Call the HTTP endpoint to upsert a form
 */
 function saveForm(form: RegistrationForm) {
   return axios.post(
-    `${HIKMA_API}/admin_api/update_patient_registration_form`,
+    `http://dotw-hikma.azurewebsites.net/admin_api/update_patient_registration_form`,
     {
       form: {
         ...form,
@@ -551,7 +551,7 @@ export default function PatientRegistrationForm() {
   */
   useEffect(() => {
     axios
-      .get(`${HIKMA_API}/admin_api/get_patient_registration_forms`, {
+      .get(`http://dotw-hikma.azurewebsites.net/admin_api/get_patient_registration_forms`, {
         headers: {
           Authorization: String(localStorage.getItem('token')),
         },

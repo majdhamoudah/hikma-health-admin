@@ -9,7 +9,7 @@ import axios from 'axios';
 const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
 const addUser = async (user: User & { password: string }, token: string): Promise<any> => {
-  const response = await fetch(`${HIKMA_API}/admin_api/user`, {
+  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/user`, {
     method: 'POST',
     headers: {
       Authorization: token,
@@ -52,7 +52,7 @@ export default function NewUser() {
     const token = localStorage.getItem('token');
 
     axios
-      .get(`${HIKMA_API}/admin_api/get_clinics`, {
+      .get(`http://dotw-hikma.azurewebsites.net/admin_api/get_clinics`, {
         headers: {
           Authorization: String(token),
         },
