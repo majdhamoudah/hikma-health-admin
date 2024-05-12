@@ -26,13 +26,16 @@ const changePassword = async (email: string, password: string, token: string): P
 export default function EditUser() {
   const router = useRouter();
   const { user: userProps } = router.query;
+
   const [user, setUser] = useState<User>(() => {
-    try {
-      return JSON.parse(userProps as string) as User;
-    } catch (error) {
-      console.warn('Error parsing userProps:', error);
-      return {} as User; // or provide a default user object
+    if (typeof userProps !== 'undefined') {
+      try {
+        return { ...(JSON.parse(userProps) as User) };
+      } catch (error) {
+        console.warn('Error parsing userProps:', error);
+      }
     }
+    return {} as User;
   });
   
   
