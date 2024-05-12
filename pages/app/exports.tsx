@@ -84,7 +84,7 @@ export default function ExportsPage() {
       let params = `id=${id}&start_date=${(startDate || new Date()).toISOString()}&end_date=${(endDate || new Date()).toISOString()}`;
       setLoadingEvents(true);
 
-      const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/get_event_form_data?${params}`, {
+      const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/get_event_form_data?${params}`, {
         method: "GET",
         headers: {
           Authorization: token

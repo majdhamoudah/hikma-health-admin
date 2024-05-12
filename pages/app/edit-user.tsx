@@ -10,7 +10,7 @@ import { userRoles } from './new-user';
 const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
 const changePassword = async (email: string, password: string, token: string): Promise<any> => {
-  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/change_password`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/change_password`, {
     method: 'POST',
     headers: {
       Authorization: token,

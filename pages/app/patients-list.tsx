@@ -10,7 +10,7 @@ import { tableToCSV } from './exports';
 const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
 export const getAllPatients = async (token: string): Promise<Patient[]> => {
-  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/all_patients`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/all_patients`, {
     method: 'GET',
     headers: {
       Authorization: token,

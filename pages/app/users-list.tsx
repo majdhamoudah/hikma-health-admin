@@ -10,7 +10,7 @@ import { User } from '../../types/User';
 const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
 const getUsers = async (token: string): Promise<User[]> => {
-  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/all_users`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/all_users`, {
     method: 'GET',
     headers: {
       Authorization: token,
@@ -28,7 +28,7 @@ const getUsers = async (token: string): Promise<User[]> => {
 };
 
 const deleteUser = async (email: string, token: string): Promise<any> => {
-  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/user`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/user`, {
     method: 'DELETE',
     headers: {
       Authorization: token,

@@ -2,7 +2,7 @@ const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
 // Call is_authenticated endpoint to check if user is authenticated
 export const isAuthenticated = async (token: string) => {
-    const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/is_authenticated`, {
+    const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/is_authenticated`, {
         method: 'GET',
         headers: {
             Authorization: token,

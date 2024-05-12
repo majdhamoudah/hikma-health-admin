@@ -40,7 +40,7 @@ const dashboardData = [
 ];
 
 const getSummaryStats = async (token: string) => {
-  const response = await fetch(`http://dotw-hikma.azurewebsites.net/admin_api/summary_stats`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/summary_stats`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

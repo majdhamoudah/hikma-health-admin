@@ -387,7 +387,7 @@ export default function NewFormBuilder() {
     const token = localStorage.getItem('token');
     axios
       .get(
-        `http://dotw-hikma.azurewebsites.net/admin_api/get_event_form?id=${formId}`,
+        `https://dotw-hikma.azurewebsites.net/admin_api/get_event_form?id=${formId}`,
 
         {
           headers: {
@@ -505,7 +505,7 @@ export default function NewFormBuilder() {
     if (formId && formId.length > 5) {
       // a form is being edited.
       result = axios.post(
-        `http://dotw-hikma.azurewebsites.net/admin_api/update_event_form`,
+        `https://dotw-hikma.azurewebsites.net/admin_api/update_event_form`,
         {
           id: formId,
           updates: {
@@ -521,7 +521,7 @@ export default function NewFormBuilder() {
       );
     } else {
       result = axios.post(
-        `http://dotw-hikma.azurewebsites.net/admin_api/save_event_form`,
+        `https://dotw-hikma.azurewebsites.net/admin_api/save_event_form`,
         {
           event_form: form,
         },
