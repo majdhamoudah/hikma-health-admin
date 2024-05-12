@@ -14,7 +14,7 @@ const fetcher = (url: string, token: string) =>
 
 export function useUser(token: string) {
   const { data, error, mutate } = useSWR<User | null, Error>(
-    [`https://dotw-hikma.azurewebsites.net/admin_api/is_authenticated`, token],
+    [`https://dotw-hikma.azurewebsites.net/api/admin/is_authenticated`, token],
     // @ts-ignore
     fetcher
   );
@@ -35,7 +35,7 @@ export function useAuthStatus() {
     const token = localStorage.getItem('token') || "";
     setLoading(true);
     if (token) {
-      fetch(`https://dotw-hikma.azurewebsites.net/admin_api/is_authenticated`, {
+      fetch(`https://dotw-hikma.azurewebsites.net/api/admin/is_authenticated`, {
         method: 'GET',
         headers: {
           Authorization: token,

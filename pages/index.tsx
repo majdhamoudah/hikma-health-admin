@@ -33,7 +33,7 @@ export default function Login() {
 
   const handleLogin = () => {
     setIsLoading(true);
-    fetch(`https://dotw-hikma.azurewebsites.net/admin_api/login`, {
+    fetch(`https://dotw-hikma.azurewebsites.net/api/admin/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

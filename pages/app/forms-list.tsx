@@ -22,7 +22,7 @@ Fetches all the forms froms from the database
 @returns {Promise<HHForm[]>}
 */
 export const getAllForms = async (token: string): Promise<HHForm[]> => {
-  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/get_event_forms`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/api/admin/get_event_forms`, {
     method: 'GET',
     headers: {
       Authorization: token,
@@ -39,7 +39,7 @@ export const getAllForms = async (token: string): Promise<HHForm[]> => {
 };
 
 const deleteForm = async (id: string, token: string): Promise<any> => {
-  const response = await fetch(`https://dotw-hikma.azurewebsites.net/admin_api/delete_event_form`, {
+  const response = await fetch(`https://dotw-hikma.azurewebsites.net/api/admin/delete_event_form`, {
     method: 'DELETE',
     headers: {
       Authorization: token,
@@ -105,7 +105,7 @@ export default function FormsList() {
       };
       axios
         .post(
-          `https://dotw-hikma.azurewebsites.net/admin_api/save_event_form`,
+          `https://dotw-hikma.azurewebsites.net/api/admin/save_event_form`,
           {
             event_form: formObj,
           },
@@ -155,7 +155,7 @@ export default function FormsList() {
     console.log(id, field, event.target.checked);
     const token = localStorage.getItem('token') || '';
     const endpoint = field === 'is_editable' ? 'set_event_form_editable' : 'toggle_snapshot_form';
-    const url = `https://dotw-hikma.azurewebsites.net/admin_api/${endpoint}`;
+    const url = `https://dotw-hikma.azurewebsites.net/api/admin/${endpoint}`;
     axios
       .post(
         url,
