@@ -26,9 +26,12 @@ const changePassword = async (email: string, password: string, token: string): P
 export default function EditUser() {
   const router = useRouter();
   const { user: userProps } = router.query;
-  const [user, setUser] = useState<User>({
+  if (typeof userProps !== 'undefined') {
+    const [user, setUser] = useState<User>({
     ...JSON.parse(userProps as string),
   });
+  }
+  
   const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
