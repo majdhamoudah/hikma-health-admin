@@ -1,10 +1,19 @@
-import { Button, Checkbox, Flex, Grid, NumberInput, Select, TextInput } from '@mantine/core';
+import {
+  ActionIcon,
+  Button,
+  Checkbox,
+  Flex,
+  Grid,
+  NumberInput,
+  Select,
+  TextInput,
+} from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
-import { IconCircleMinus, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconCircleMinus, IconEdit, IconRestore, IconTrash } from '@tabler/icons-react';
 import * as z from 'zod';
 import { DESTRUCTION } from 'dns';
 import { curry, sortBy } from 'lodash';
-import { Fragment, useEffect, useReducer, useState } from 'react';
+import { Fragment, useEffect, useMemo, useReducer, useState } from 'react';
 import { tw } from 'twind';
 import { useImmer, useImmerReducer } from 'use-immer';
 import { v1 as uuidv1, v4 as uuidv4 } from 'uuid';
@@ -14,6 +23,7 @@ import { FieldType, InputType } from '../../types/Inputs';
 import { FreeTextInput, OptionsInput } from './new-form';
 import axios from 'axios';
 import { useRouter } from 'next/router';
+import { mapObjectValues } from '../../utils/misc';
 
 const HIKMA_API = process.env.NEXT_PUBLIC_HIKMA_API;
 
@@ -31,7 +41,7 @@ type TranslationObject = DefaultLanguages & {
 
 type LanguageKey = 'en' | 'ar' | 'es' | string;
 
-type RegistrationFormField = {
+export type RegistrationFormField = {
   id: string;
   position: number;
   // column name in the database
@@ -42,9 +52,11 @@ type RegistrationFormField = {
   required: boolean;
   baseField: boolean; // whether or not this is part of the base inputs required of all registration forms
   visible: boolean; // Whether or not it displays in the app
+  deleted: boolean; // Whether or not this field has been marked as "deleted" - soft delete allows for field values to still be retrievable
+  isSearchField: boolean; // Whether or not this field can be sea
 };
 
-type RegistrationForm = {
+export type RegistrationForm = {
   id: string;
   name: string;
   fields: RegistrationFormField[];
@@ -80,7 +92,7 @@ Given a translation object, create options for a dropdown
 @param {LanguageKey} language
 @returns {Array<{label: string, value: string}>}
 */
-function translationObjectOptions(
+export function translationObjectOptions(
   translations: TranslationObject[],
   language: LanguageKey
 ): Array<{ label: string; value: string }> {
@@ -110,7 +122,7 @@ First Name, Last Name, date of birth, sex, registration date
     { name: "camp", type: "string", isOptional: true },
   ],
 */
-const baseFields: RegistrationForm['fields'] = [
+export const baseFields: RegistrationForm['fields'] = [
   {
     baseField: true,
     id: 'e3d7615c-6ee6-11ee-b962-0242ac120002',
@@ -125,6 +137,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
   },
   {
     baseField: true,
@@ -140,6 +154,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
   },
   {
     baseField: true,
@@ -155,6 +171,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: true,
   },
   {
     baseField: true,
@@ -181,6 +199,8 @@ const baseFields: RegistrationForm['fields'] = [
     ], // only if its a search field
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: true,
   },
   {
     baseField: true,
@@ -196,6 +216,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
   },
   {
     baseField: true,
@@ -211,6 +233,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
   },
   {
     baseField: true,
@@ -226,6 +250,8 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
   },
   {
     baseField: true,
@@ -241,6 +267,42 @@ const baseFields: RegistrationForm['fields'] = [
     options: [],
     visible: true,
     required: true,
+    deleted: false,
+    isSearchField: false,
+  },
+  {
+    baseField: true,
+    id: 'be6e53d6-120a-11ef-9262-0242ac120002',
+    column: 'government_id',
+    position: 7,
+    label: {
+      en: 'Government ID',
+      ar: 'الهوية الحكومية',
+      es: 'Identificación del gobierno',
+    },
+    fieldType: 'text',
+    options: [],
+    visible: true,
+    required: true,
+    deleted: false,
+    isSearchField: false,
+  },
+  {
+    baseField: true,
+    id: 'b7671870-120a-11ef-9262-0242ac120002',
+    column: 'external_patient_id',
+    position: 7,
+    label: {
+      en: 'Patient ID',
+      ar: 'رقم المريض',
+      es: 'ID del paciente',
+    },
+    fieldType: 'text',
+    options: [],
+    visible: true,
+    required: true,
+    deleted: false,
+    isSearchField: false,
   },
 ];
 
@@ -249,9 +311,11 @@ type Action =
   | { type: 'set-form-state'; payload: { form: State } } // sets the entire form to a specific value. usefull for initial states and setting values to what is in the database.
   | { type: 'add-field' } // generates a fieldID by default
   | { type: 'remove-field'; payload: { id: string } } // only removes fields that are not base fields
+  | { type: 'restore-field'; payload: { id: string } } // restores previously deleted fields
   | { type: 'change-position'; payload: { id: string; position: number } }
   | { type: 'update-field-label'; payload: { translation: string; label: string; id: string } }
   | { type: 'toggle-field-required'; payload: { id: string } }
+  | { type: 'toggle-field-searchable'; payload: { id: string } }
   | {
       type: 'toggle-visibility';
       payload: {
@@ -328,6 +392,7 @@ function reducer(state: State, action: Action) {
         id: uuidv1(),
         baseField: false,
         fieldType: 'text',
+        isSearchField: false,
         column: '',
         label: {
           en: 'New Field ' + position,
@@ -338,6 +403,7 @@ function reducer(state: State, action: Action) {
         position: position,
         required: true,
         visible: true,
+        deleted: false,
       };
 
       state.fields.push(newField);
@@ -351,6 +417,7 @@ function reducer(state: State, action: Action) {
         field.label[translation] = label;
 
         // edit the column name to be the english translation of a field && is not a base field
+        // IMPORTANT: never edit a base field. these fields map to the column names in the mobile application
         if (translation === 'en' && field.baseField === false) {
           if (field.label['en'].length > 0) {
             field.column = encodeURI(field.label['en']);
@@ -448,7 +515,32 @@ function reducer(state: State, action: Action) {
       // if there is no field, or if the field is a base field
       if (field === undefined || field?.baseField) return;
 
-      state.fields = state.fields.filter((field) => field.id !== id);
+      // state.fields = state.fields.filter((field) => field.id !== id);
+      // simply marking the field as deleted
+      state.fields = state.fields.map((field) => {
+        if (field.id === id) {
+          return { ...field, deleted: true };
+        } else {
+          return field;
+        }
+      });
+
+      break;
+    }
+    case 'restore-field': {
+      const { id } = action.payload;
+      const field = state.fields.find((f) => f.id === id);
+      // if there is no field, or if the field is a base field
+      if (field === undefined) return;
+
+      // simply marking the field as *NOT* deleted
+      state.fields = state.fields.map((field) => {
+        if (field.id === id) {
+          return { ...field, deleted: false };
+        } else {
+          return field;
+        }
+      });
 
       break;
     }
@@ -494,6 +586,14 @@ function reducer(state: State, action: Action) {
       if (field) {
         field.required = !field.required;
       }
+      break;
+    }
+    case 'toggle-field-searchable': {
+      const { id } = action.payload;
+      const field = state.fields.find((f) => f.id === id);
+      if (!field) return;
+
+      field.isSearchField = !field.isSearchField;
       break;
     }
   }
@@ -617,9 +717,9 @@ export default function PatientRegistrationForm() {
         updatedAt: new Date(),
       })
         .then((res) => {
-        alert("Form Saved.");
-        router.back()
-      })
+          alert('Form Saved.');
+          router.back();
+        })
         .catch((error) => {
           console.error({ error });
         })
@@ -631,7 +731,23 @@ export default function PatientRegistrationForm() {
     console.log(result);
   };
 
-  console.log('RENDER');
+  useEffect(() => {
+    const handleEsc = (event: any) => {
+      if (event.key === 'Escape') {
+        setEditField((draft) => {
+          draft.id = '';
+        });
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, []);
+
+  /** Fields that have been soft deleted */
+  const deletedFields = useMemo(() => fields.filter((f) => f.deleted), [fields, fields.length]);
 
   // const language = "en"
   return (
@@ -652,294 +768,343 @@ export default function PatientRegistrationForm() {
       </div>
 
       <div className={tw('max-w-lg space-y-4 pt-6')}>
-        {sortBy(fields, 'position').map((field) => {
-          const { baseField, id, label, options, position, fieldType, required } = field;
-          const isInEditMode = editField.id === id;
-          return (
-            <div
-              className={tw(`border border-[${isInEditMode ? '#1d4ed8' : '#555'}] rounded p-4`)}
-              key={field.id}
-            >
-              {fieldType === 'select' && (
-                <OptionsInput
-                  key={id}
-                  field={
-                    {
-                      fieldType: 'options',
-                      description: '',
-                      options: translationObjectOptions(options, formLanguage),
-                      name: getTranslation(label, formLanguage) + `${!field.visible ? "(hidden)" : ""}`,
-                      required,
-                    } as any
-                  }
-                />
-              )}
-              {(fieldType === 'text' || fieldType === 'number') && (
-                <FreeTextInput
-                  key={field.id}
-                  field={
-                    {
-                      name: getTranslation(label, formLanguage) + `${!field.visible ? "(hidden)" : ""}`,
-                      inputType: fieldType,
-                      description: '',
-                      required,
-                    } as any
-                  }
-                />
-              )}{' '}
-              {field.fieldType === 'date' && (
-                <DatePickerInput
-                  valueFormat="YYYY MMM DD"
-                  description={''}
-                  label={getTranslation(label, formLanguage)+ `${!field.visible ? "(hidden)" : ""}`}
-                  required={field.required}
-                  placeholder="Pick date"
-                  mx="auto"
-                />
-              )}
-              {editField.id === '' && (
-                <Flex>
-                  <Button
-                    variant="subtle"
-                    onClick={() => {
-                      setEditField((draft) => {
-                        draft.id = id;
-                      });
-                    }}
-                    compact
-                  >
-                    Edit Field
-                  </Button>
-
-                  {baseField !== true && (
+        {sortBy(fields, 'position')
+          .filter((f) => !f.deleted)
+          .map((field) => {
+            const { baseField, id, label, options, position, fieldType, required, isSearchField } =
+              field;
+            const isInEditMode = editField.id === id;
+            return (
+              <div
+                className={tw(`border border-[${isInEditMode ? '#1d4ed8' : '#555'}] rounded p-4`)}
+                key={field.id}
+              >
+                {fieldType === 'select' && (
+                  <OptionsInput
+                    key={id}
+                    field={
+                      {
+                        fieldType: 'options',
+                        description: '',
+                        options: translationObjectOptions(options, formLanguage),
+                        name:
+                          getTranslation(label, formLanguage) +
+                          `${!field.visible ? '(hidden)' : ''}`,
+                        required,
+                      } as any
+                    }
+                  />
+                )}
+                {(fieldType === 'text' || fieldType === 'number') && (
+                  <FreeTextInput
+                    key={field.id}
+                    field={
+                      {
+                        name:
+                          getTranslation(label, formLanguage) +
+                          `${!field.visible ? '(hidden)' : ''}`,
+                        inputType: fieldType,
+                        description: '',
+                        required,
+                      } as any
+                    }
+                  />
+                )}{' '}
+                {field.fieldType === 'date' && (
+                  <DatePickerInput
+                    valueFormat="YYYY MMM DD"
+                    description={''}
+                    label={
+                      getTranslation(label, formLanguage) + `${!field.visible ? '(hidden)' : ''}`
+                    }
+                    required={field.required}
+                    placeholder="Pick date"
+                    mx="auto"
+                  />
+                )}
+                {editField.id === '' && (
+                  <Flex>
                     <Button
                       variant="subtle"
-                      color={'red'}
-                      onClick={() => dispatch({ type: 'remove-field', payload: { id: field.id } })}
+                      onClick={() => {
+                        setEditField((draft) => {
+                          draft.id = id;
+                        });
+                      }}
                       compact
                     >
-                      Remove Field
+                      Edit Field
                     </Button>
-                  )}
-                </Flex>
-              )}
-              {editField.id === id && (
-                <div className={tw('mt-6 border-t border-[#333] pt-6')}>
-                  <Grid>
-                    {Object.keys(field.label).map((languageKey) => {
-                      return (
-                        <Fragment key={languageKey}>
-                          <Grid.Col span={4}>
-                            <Select
-                              label="Language"
-                              placeholder="Choose"
-                              value={languageKey}
-                              disabled
-                              data={[
-                                // TODO: Add support for filtering out existing translation
-                                { value: 'en', label: 'English' },
-                                { value: 'es', label: 'Spanish' },
-                                { value: 'ar', label: 'Arabic' },
-                              ]}
-                            />
-                          </Grid.Col>
-                          <Grid.Col span={8}>
-                            <TextInput
-                              label="Field Name"
-                              value={getTranslation(label, languageKey)}
-                              onChange={(e) => {
-                                dispatch({
-                                  type: 'update-field-label',
-                                  payload: {
-                                    id: id,
-                                    label: e.target.value,
-                                    translation: languageKey,
-                                  },
-                                });
-                              }}
-                            />
-                          </Grid.Col>
-                        </Fragment>
-                      );
-                    })}
 
-                    <Grid.Col span={12}>
-                      <Select
-                        label="Field Type"
-                        placeholder="Choose"
-                        value={fieldType}
-                        onChange={(fieldType) =>
-                          dispatch({
-                            type: 'update-field-type',
-                            payload: { id, type: fieldType as (typeof inputTypes)[number] },
-                          })
+                    {baseField !== true && (
+                      <Button
+                        variant="subtle"
+                        color={'red'}
+                        onClick={() =>
+                          dispatch({ type: 'remove-field', payload: { id: field.id } })
                         }
-                        data={inputTypes.map((iT) => ({ label: iT, value: iT }))}
-                      />
-                    </Grid.Col>
+                        compact
+                      >
+                        Delete Field
+                      </Button>
+                    )}
+                  </Flex>
+                )}
+                {editField.id === id && (
+                  <div className={tw('mt-6 border-t border-[#333] pt-6')}>
+                    <Grid>
+                      {Object.keys(field.label).map((languageKey) => {
+                        return (
+                          <Fragment key={languageKey}>
+                            <Grid.Col span={4}>
+                              <Select
+                                label="Language"
+                                placeholder="Choose"
+                                value={languageKey}
+                                disabled
+                                data={[
+                                  // TODO: Add support for filtering out existing translation
+                                  { value: 'en', label: 'English' },
+                                  { value: 'es', label: 'Spanish' },
+                                  { value: 'ar', label: 'Arabic' },
+                                ]}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={8}>
+                              <TextInput
+                                label="Field Name"
+                                value={getTranslation(label, languageKey)}
+                                onChange={(e) => {
+                                  dispatch({
+                                    type: 'update-field-label',
+                                    payload: {
+                                      id: id,
+                                      label: e.target.value,
+                                      translation: languageKey,
+                                    },
+                                  });
+                                }}
+                              />
+                            </Grid.Col>
+                          </Fragment>
+                        );
+                      })}
 
-                    {fieldType === 'select' && (
                       <Grid.Col span={12}>
-                        Options
-                        {field.options.map((option, idx) => {
-                          return (
-                            <div key={idx}>
-                              <Grid columns={12}>
-                                <Grid.Col span={11} className={''}>
-                                  <TextInput
-                                    label={`Option ${idx + 1} (English)`}
-                                    value={option.en}
-                                    onChange={({ target: { value } }) =>
-                                      dispatch({
-                                        type: 'update-select-option-translation',
-                                        payload: { id, index: idx, language: 'en', value },
-                                      })
-                                    }
-                                  />
-                                </Grid.Col>
-                                <Grid.Col span={1} className={tw('flex items-end justify-center')}>
-                                  <Button
-                                    size="sm"
-                                    variant="subtle"
-                                    onClick={() =>
-                                      dispatch({
-                                        type: 'remove-select-option',
-                                        payload: { id, index: idx },
-                                      })
-                                    }
-                                  >
-                                    <IconCircleMinus size={18} color="pink" />
-                                  </Button>
-                                </Grid.Col>
-                              </Grid>
+                        <Select
+                          label="Field Type"
+                          placeholder="Choose"
+                          value={fieldType}
+                          onChange={(fieldType) =>
+                            dispatch({
+                              type: 'update-field-type',
+                              payload: { id, type: fieldType as (typeof inputTypes)[number] },
+                            })
+                          }
+                          data={inputTypes.map((iT) => ({ label: iT, value: iT }))}
+                        />
+                      </Grid.Col>
 
-                              <Flex gap={2}>
-                                <If show={!('es' in option)}>
-                                  <Button
-                                    variant="subtle"
-                                    onClick={() =>
-                                      dispatch({
-                                        type: 'add-select-option-translation',
-                                        payload: { id, index: idx, language: 'es' },
-                                      })
-                                    }
+                      {fieldType === 'select' && (
+                        <Grid.Col span={12}>
+                          Options
+                          {field.options.map((option, idx) => {
+                            return (
+                              <div key={idx}>
+                                <Grid columns={12}>
+                                  <Grid.Col span={11} className={''}>
+                                    <TextInput
+                                      label={`Option ${idx + 1} (English)`}
+                                      value={option.en}
+                                      onChange={({ target: { value } }) =>
+                                        dispatch({
+                                          type: 'update-select-option-translation',
+                                          payload: { id, index: idx, language: 'en', value },
+                                        })
+                                      }
+                                    />
+                                  </Grid.Col>
+                                  <Grid.Col
+                                    span={1}
+                                    className={tw('flex items-end justify-center')}
                                   >
-                                    + Spanish
-                                  </Button>
-                                </If>
-                                <If show={!('ar' in option)}>
-                                  <Button
-                                    variant="subtle"
-                                    onClick={() =>
-                                      dispatch({
-                                        type: 'add-select-option-translation',
-                                        payload: { id, index: idx, language: 'ar' },
-                                      })
-                                    }
-                                  >
-                                    + Arabic
-                                  </Button>
-                                </If>
-                              </Flex>
+                                    <Button
+                                      size="sm"
+                                      variant="subtle"
+                                      onClick={() =>
+                                        dispatch({
+                                          type: 'remove-select-option',
+                                          payload: { id, index: idx },
+                                        })
+                                      }
+                                    >
+                                      <IconCircleMinus size={18} color="pink" />
+                                    </Button>
+                                  </Grid.Col>
+                                </Grid>
 
-                              {/*Except for english, loop over the other languages and show them and their translations*/}
-                              <div className={tw('pl-8 space-y-2 pb-5')}>
-                                {Object.keys(option)
-                                  .filter((k) => k !== 'en')
-                                  .map((languageKey) => (
-                                    <Grid columns={12} key={languageKey}>
-                                      <Grid.Col span={10}>
-                                        <TextInput
-                                          label={`Option ${idx + 1} (${friendlyLang(languageKey)})`}
-                                          value={option[languageKey]}
-                                          onChange={({ target: { value } }) =>
-                                            dispatch({
-                                              type: 'update-select-option-translation',
-                                              payload: {
-                                                id,
-                                                index: idx,
-                                                language: languageKey,
-                                                value,
-                                              },
-                                            })
-                                          }
-                                        />
-                                      </Grid.Col>
-                                      <Grid.Col span={2} className={tw('flex items-end')}>
-                                        <Button
-                                          size="sm"
-                                          variant="subtle"
-                                          onClick={() =>
-                                            dispatch({
-                                              type: 'remove-select-option-translation',
-                                              payload: { id, index: idx, language: languageKey },
-                                            })
-                                          }
-                                        >
-                                          <IconCircleMinus size={18} color="pink" />
-                                        </Button>
-                                      </Grid.Col>
-                                    </Grid>
-                                  ))}
+                                <Flex gap={2}>
+                                  <If show={!('es' in option)}>
+                                    <Button
+                                      variant="subtle"
+                                      onClick={() =>
+                                        dispatch({
+                                          type: 'add-select-option-translation',
+                                          payload: { id, index: idx, language: 'es' },
+                                        })
+                                      }
+                                    >
+                                      + Spanish
+                                    </Button>
+                                  </If>
+                                  <If show={!('ar' in option)}>
+                                    <Button
+                                      variant="subtle"
+                                      onClick={() =>
+                                        dispatch({
+                                          type: 'add-select-option-translation',
+                                          payload: { id, index: idx, language: 'ar' },
+                                        })
+                                      }
+                                    >
+                                      + Arabic
+                                    </Button>
+                                  </If>
+                                </Flex>
+
+                                {/*Except for english, loop over the other languages and show them and their translations*/}
+                                <div className={tw('pl-8 space-y-2 pb-5')}>
+                                  {Object.keys(option)
+                                    .filter((k) => k !== 'en')
+                                    .map((languageKey) => (
+                                      <Grid columns={12} key={languageKey}>
+                                        <Grid.Col span={10}>
+                                          <TextInput
+                                            label={`Option ${idx + 1} (${friendlyLang(
+                                              languageKey
+                                            )})`}
+                                            value={option[languageKey]}
+                                            onChange={({ target: { value } }) =>
+                                              dispatch({
+                                                type: 'update-select-option-translation',
+                                                payload: {
+                                                  id,
+                                                  index: idx,
+                                                  language: languageKey,
+                                                  value,
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </Grid.Col>
+                                        <Grid.Col span={2} className={tw('flex items-end')}>
+                                          <Button
+                                            size="sm"
+                                            variant="subtle"
+                                            onClick={() =>
+                                              dispatch({
+                                                type: 'remove-select-option-translation',
+                                                payload: { id, index: idx, language: languageKey },
+                                              })
+                                            }
+                                          >
+                                            <IconCircleMinus size={18} color="pink" />
+                                          </Button>
+                                        </Grid.Col>
+                                      </Grid>
+                                    ))}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                          <Button
+                            fullWidth
+                            variant={'outline'}
+                            className={tw('my-2')}
+                            onClick={() => dispatch({ type: 'add-select-option', payload: { id } })}
+                          >
+                            Add Select Option
+                          </Button>
+                        </Grid.Col>
+                      )}
+
+                      <Grid.Col span={12} className={tw('space-y-3')}>
+                        <Checkbox
+                          checked={field.visible}
+                          onChange={() => dispatch({ type: 'toggle-visibility', payload: { id } })}
+                          label="This field is visible to clinicians"
+                        />
+                        <Checkbox
+                          checked={required}
+                          onChange={(e) =>
+                            dispatch({ type: 'toggle-field-required', payload: { id } })
+                          }
+                          label="This field is required"
+                        />
+                        <Checkbox
+                          checked={isSearchField}
+                          onChange={(e) =>
+                            dispatch({ type: 'toggle-field-searchable', payload: { id } })
+                          }
+                          label="This field is included in advanced search"
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={12}>
+                        <NumberInput
+                          label="Field Position"
+                          placeholder=""
+                          value={position}
+                          onChange={(e) =>
+                            dispatch({ type: 'change-position', payload: { id, position: +e } })
+                          }
+                        />
+                      </Grid.Col>
+
+                      <Grid.Col span={12}>
                         <Button
+                          variant={'subtle'}
                           fullWidth
-                          variant={'outline'}
-                          className={tw('my-2')}
-                          onClick={() => dispatch({ type: 'add-select-option', payload: { id } })}
+                          onClick={() => {
+                            setEditField((draft) => {
+                              draft.id = '';
+                            });
+                          }}
                         >
-                          Add Select Option
+                          Save Changes
                         </Button>
                       </Grid.Col>
-                    )}
+                    </Grid>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-                    <Grid.Col span={12} className={tw('space-y-3')}>
-                      <Checkbox
-                        checked={field.visible}
-                        onChange={() => dispatch({ type: 'toggle-visibility', payload: { id } })}
-                        label="This field is visible to clinicians"
-                      />
-                      <Checkbox
-                        checked={required}
-                        onChange={(e) =>
-                          dispatch({ type: 'toggle-field-required', payload: { id } })
-                        }
-                        label="This field is required"
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={12}>
-                      <NumberInput
-                        label="Field Position"
-                        placeholder=""
-                        value={position}
-                        onChange={(e) =>
-                          dispatch({ type: 'change-position', payload: { id, position: +e } })
-                        }
-                      />
-                    </Grid.Col>
+        {/** Deleted fields show here */}
+        {deletedFields.length > 0 && (
+          <div>
+            <hr />
+            <label>Deleted fields</label>
 
-                    <Grid.Col span={12}>
-                      <Button
-                        variant={'subtle'}
-                        fullWidth
-                        onClick={() => {
-                          setEditField((draft) => {
-                            draft.id = '';
-                          });
-                        }}
-                      >
-                        Save Changes
-                      </Button>
-                    </Grid.Col>
-                  </Grid>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            {deletedFields.map((field) => {
+              return (
+                <Flex key={field.id} justify="space-between" my={4}>
+                  <div>
+                    <label>{getTranslation(field.label, formLanguage)}</label>
+                  </div>
+
+                  <ActionIcon
+                    variant="filled"
+                    aria-label="Settings"
+                    onClick={() => dispatch({ type: 'restore-field', payload: { id: field.id } })}
+                  >
+                    <IconRestore style={{ width: '70%', height: '70%' }} stroke={1.5} />
+                  </ActionIcon>
+                </Flex>
+              );
+            })}
+          </div>
+        )}
 
         <Button onClick={() => dispatch({ type: 'add-field' })} fullWidth>
           + Add Field
@@ -951,17 +1116,6 @@ export default function PatientRegistrationForm() {
       </div>
     </AppLayout>
   );
-}
-
-/**
-Utility function that processes the values of an object
-
-@param {Object} obj
-@oaram {(v: any) => any} func
-@returns {Object}
-*/
-function mapObjectValues<T>(obj: T, func: (v: any) => any): T {
-  return Object.fromEntries(Object.entries(obj as any).map(([k, v]) => [k, func(v)])) as T;
 }
 
 /**
@@ -995,7 +1149,7 @@ If the english version does not exist, return any.
 @param {string} language
 @return {string} translation
 */
-function getTranslation(translations: TranslationObject, language: string): string {
+export function getTranslation(translations: TranslationObject, language: string): string {
   const translationKeys = Object.keys(translations);
 
   // in the case of no translations, return an empty string

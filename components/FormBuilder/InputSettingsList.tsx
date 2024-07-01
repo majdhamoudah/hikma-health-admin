@@ -86,6 +86,7 @@ type DndListHandleProps = {
   onFieldChange: (id: string, key: string, value: any) => void;
   onFieldOptionChange: (id: string, options: FieldOption[]) => void;
   onFieldUnitChange: (id: string, units: DoseUnit[] | false) => void;
+  onReorder: (ids: string[]) => void;
 };
 
 export function InputSettingsList({
@@ -94,6 +95,7 @@ export function InputSettingsList({
   onFieldChange,
   onFieldOptionChange,
   onFieldUnitChange,
+  onReorder,
 }: DndListHandleProps) {
   const { classes, cx } = useStyles();
   const [state, handlers] = useListState(data);
@@ -131,34 +133,32 @@ export function InputSettingsList({
               Type: {item.inputType}
             </Text>
 
-            {['select', 'dropdown', 'checkbox', 'radio'].includes(item.inputType) && item.fieldType !== "diagnosis" && (
-              <>
-                <MultiSelect
-                  label="Add options"
-                  data={fieldOptionsUnion(YesNoOptions, item.options || [])}
-                  placeholder="Select items"
-                  searchable
-                  value={item.options.map((option: any) => option.value)}
-                  creatable
-                  onChange={(value) => {
-                    const fieldOptionsArray = value.map((option: any) => ({
-                      value: lowerCase(option),
-                      label: upperFirst(option),
-                    }));
-                    onFieldOptionChange(item.id, fieldOptionsArray);
-                  }}
-                  getCreateLabel={(query) => `+ Create ${query}`}
-                  onCreate={(query) => {
-                    // Lower case and make camel case
-                    const newOption = { value: lowerCase(query), label: query };
-                    console.log({ newOption });
-                    onFieldOptionChange(item.id, [...item.options, newOption]);
-                    // setData((current) => [...current, item]);
-                    // return item;
-                  }}
-                />
-              </>
-            )}
+            {['select', 'dropdown', 'checkbox', 'radio'].includes(item.inputType) &&
+              item.fieldType !== 'diagnosis' && (
+                <>
+                  <MultiSelect
+                    label="Add options"
+                    data={fieldOptionsUnion(YesNoOptions, item.options || [])}
+                    placeholder="Select items"
+                    searchable
+                    value={item.options.map((option: any) => option.value)}
+                    creatable
+                    onChange={(value) => {
+                      const fieldOptionsArray = value.map((option: any) => ({
+                        value: lowerCase(option),
+                        label: upperFirst(option),
+                      }));
+                      onFieldOptionChange(item.id, fieldOptionsArray);
+                    }}
+                    getCreateLabel={(query) => `+ Create ${query}`}
+                    onCreate={(query) => {
+                      // Lower case and make camel case
+                      const newOption = { value: lowerCase(query), label: query };
+                      onFieldOptionChange(item.id, [...item.options, newOption]);
+                    }}
+                  />
+                </>
+              )}
 
             {item.inputType === 'number' && (
               <Checkbox
@@ -171,6 +171,15 @@ export function InputSettingsList({
                 }
                 checked={item.units && item.units.length > 0}
                 label="Has Units"
+              />
+            )}
+
+            {item.fieldType === 'options' && item.inputType === 'select' && (
+              <Checkbox
+                className={tw('py-2')}
+                onChange={(e) => onFieldChange(item.id, 'multi', e.currentTarget.checked)}
+                checked={item.multi}
+                label="Supports multiple options"
               />
             )}
 
@@ -203,9 +212,12 @@ export function InputSettingsList({
   return (
     /*     @ts-ignore */
     <DragDropContext
-      onDragEnd={({ destination, source }) =>
-        handlers.reorder({ from: source.index, to: destination?.index || 0 })
-      }
+      onDragEnd={({ destination, source }) => {
+        handlers.reorder({ from: source.index, to: destination?.index || 0 });
+        const fieldIds = state.map((field) => field.id);
+
+        onReorder(moveString(fieldIds, source.index, destination.index));
+      }}
     >
       {/*       @ts-ignore */}
       <Droppable droppableId="dnd-list" direction="vertical">
@@ -227,4 +239,22 @@ function fieldOptionsUnion(options1: FieldOption[], options2: FieldOption[]): Fi
   const options2Map = options2.reduce((acc, option) => ({ ...acc, [option.value]: option }), {});
 
   return Object.values({ ...options1Map, ...options2Map });
+}
+
+function moveString(arr, sourceIndex, destIndex) {
+  // Check if indices are valid
+  if (sourceIndex < 0 || sourceIndex >= arr.length || destIndex < 0 || destIndex > arr.length) {
+    throw new Error('Invalid source or destination index');
+  }
+
+  // Create a copy of the array
+  const newArr = [...arr];
+
+  // Remove the item from the source index
+  const [removed] = newArr.splice(sourceIndex, 1);
+
+  // Insert the item at the destination index
+  newArr.splice(destIndex, 0, removed);
+
+  return newArr;
 }
